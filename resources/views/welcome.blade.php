@@ -9,7 +9,21 @@
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />
-
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+        <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        <style>
+        #map { 
+            width : 50%;
+            height: 50vh;
+         }
+         body { background: #f8f9fa; }
+    .card { margin-bottom: 1rem; }
+    #loading { text-align: center; padding: 1rem; display: none; }
+        #listContainer{
+            width: 100%;
+        }
+    </style>
         <!-- Styles / Scripts -->
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -49,7 +63,7 @@
                 </nav>
             @endif
         </header>
-        <div class="flex items-center justify-center w-full transition-opacity opacity-100 duration-750 lg:grow starting:opacity-0">
+        <!-- <div class="flex items-center justify-center w-full transition-opacity opacity-100 duration-750 lg:grow starting:opacity-0">
             <main class="flex max-w-[335px] w-full flex-col-reverse lg:max-w-4xl lg:flex-row">
                 <div class="text-[13px] leading-[20px] flex-1 p-6 pb-12 lg:p-20 bg-white dark:bg-[#161615] dark:text-[#EDEDEC] shadow-[inset_0px_0px_0px_1px_rgba(26,26,0,0.16)] dark:shadow-[inset_0px_0px_0px_1px_#fffaed2d] rounded-bl-lg rounded-br-lg lg:rounded-tl-lg lg:rounded-br-none">
                     <h1 class="mb-1 font-medium">Let's get started</h1>
@@ -268,8 +282,206 @@
                     <div class="absolute inset-0 rounded-t-lg lg:rounded-t-none lg:rounded-r-lg shadow-[inset_0px_0px_0px_1px_rgba(26,26,0,0.16)] dark:shadow-[inset_0px_0px_0px_1px_#fffaed2d]"></div>
                 </div>
             </main>
+        </div> -->
+        <div id="map"></div>
+        <br>
+        <hr>
+        <div class="mb-3">
+            <label for="categorySelect" class="form-label">انتخاب دسته‌بندی:</label>
+            <select id="categorySelect" class="form-select">
+                <option value="all">همه دسته‌ها</option>
+            </select>
         </div>
+        <div id="listContainer"></div>
+        <h2 class="mb-4">لیست اماکن فرهنگی</h2>
+        <div id="place-list" class="row"></div>
+        <div id="loading">در حال بارگذاری...</div>
 
+
+        <div class="modal fade" id="detailsModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="detailsModalLabel">جزئیات مکان</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button>
+                </div>
+                <div class="modal-body" id="detailsContent">
+                    در حال بارگذاری...
+                </div>
+                </div>
+            </div>
+        </div>
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+        <script>
+            // ساخت نقشه
+            const map = L.map('map').setView([51.05, 13.73], 12); // مختصات مرکز اولیه
+
+            // اضافه کردن نقشه پایه
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
+            // بارگذاری فایل GeoJSON
+            fetch("{{ asset('Sachsen.geojson') }}")
+                .then(response => response.json())
+                .then(data => {
+                    // اضافه کردن GeoJSON به نقشه
+                    L.geoJSON(data, {
+                        onEachFeature: function (feature, layer) {
+                            let props = feature.properties;
+                            let popup = `<strong>${props.name || 'نام ندارد'}</strong><br>`;
+                            if (props['addr:street']) popup += `${props['addr:street']} ${props['addr:housenumber'] || ''}<br>`;
+                            if (props.website) popup += `<a href="${props.website}" target="_blank">وب‌سایت</a><br>`;
+                            if (props.opening_hours) popup += `🕒 ${props.opening_hours}<br>`;
+                            layer.bindPopup(popup);
+                            layer.on('click', function () {
+                                showDetails(feature);
+                            });
+                        }
+                    }).addTo(map);
+                });
+        </script>
+      <script>
+        let data = [];         
+        let index = 0;         
+        const step = 9;        // چون در هر ردیف 3 تا داریم، عدد باید مضرب 3 باشه
+
+        fetch("{{ asset('Sachsen.geojson') }}")
+            .then(res => res.json())
+            .then(json => {
+            data = json.features;
+            loadMore();
+            });
+
+        function createCard(item) {
+            const props = item.properties;
+            const name = props.name || 'بدون نام';
+            const address = (props['addr:street'] || '') + ' ' + (props['addr:housenumber'] || '');
+            const website = props.website ? `<a href="${props.website}" target="_blank">وب‌سایت</a>` : '';
+            const phone = props.phone || '';
+            return `
+            <div class="col-md-4 my-3">
+                <div class="card h-100 shadow-sm" style="cursor:pointer" onclick='showDetails(${JSON.stringify(item)})'>
+                <div class="card-body">
+                    <h5 class="card-title">${name}</h5>
+                    <p class="card-text">${address}</p>
+                    ${website ? `<p>${website}</p>` : ''}
+                    ${phone ? `<p>📞 ${phone}</p>` : ''}
+                </div>
+                </div>
+            </div>
+            `;
+        }
+
+        function loadMore() {
+            const list = document.getElementById('place-list');
+            const loading = document.getElementById('loading');
+            loading.style.display = 'block';
+
+            setTimeout(() => {
+            const slice = data.slice(index, index + step);
+            slice.forEach(item => {
+                list.insertAdjacentHTML('beforeend', createCard(item));
+            });
+            index += step;
+            loading.style.display = 'none';
+            }, 500);
+        }
+
+        window.addEventListener('scroll', () => {
+            const bottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 100;
+            if (bottom && index < data.length) {
+            loadMore();
+            }
+        });
+
+        function showDetails(feature) {
+            const props = feature.properties;
+            let html = `<ul class="list-group">`;
+
+            for (const [key, value] of Object.entries(props)) {
+                html += `
+                <li class="list-group-item">
+                    <strong>${key}</strong>: ${value}
+                </li>`;
+            }
+
+            html += `</ul>`;
+            document.getElementById('detailsContent').innerHTML = html;
+            const modal = new bootstrap.Modal(document.getElementById('detailsModal'));
+            modal.show();
+        }
+        let allFeatures = []; // ذخیره همه داده‌ها
+        let currentLayerGroup; // برای حذف و اضافه لایه‌ها
+
+        function extractTourismTypes(features) {
+        const types = new Set();
+        features.forEach(f => {
+            if (f.properties.tourism) {
+            types.add(f.properties.tourism);
+            }
+        });
+        return Array.from(types);
+        }
+
+        function populateCategorySelect(types) {
+        const select = document.getElementById('categorySelect');
+        types.forEach(type => {
+            const option = document.createElement('option');
+            option.value = type;
+            option.textContent = type;
+            select.appendChild(option);
+        });
+        }
+        function filterFeaturesByTourism(type) {
+            if (type === 'all') return allFeatures;
+                return allFeatures.filter(f => f.properties.tourism === type);
+        }
+
+        function renderMap(features) {
+        if (currentLayerGroup) {
+            map.removeLayer(currentLayerGroup);
+        }
+
+        currentLayerGroup = L.geoJSON(features, {
+            pointToLayer: function (feature, latlng) {
+            return L.circleMarker(latlng, {
+                radius: 6,
+                color: getMarkerColor(feature.properties.tourism)
+            });
+            },
+            onEachFeature: function (feature, layer) {
+            layer.on('click', () => showDetails(feature));
+            }
+        }).addTo(map);
+        }
+
+        function renderList(features) {
+        const container = document.getElementById('listContainer');
+        container.innerHTML = '<div class="row">' +
+            features.map(createCard).join('') +
+            '</div>';
+        }
+        document.getElementById('categorySelect').addEventListener('change', (e) => {
+            const selected = e.target.value;
+            const filtered = filterFeaturesByTourism(selected);
+            renderList(filtered);
+            renderMap(filtered);
+        });
+        fetch('Sachsen.geojson')
+        .then(res => res.json())
+        .then(json => {
+            allFeatures = json.features;
+
+            const types = extractTourismTypes(allFeatures);
+            populateCategorySelect(types);
+
+            renderList(allFeatures);
+            renderMap(allFeatures);
+        });
+        </script>
         @if (Route::has('login'))
             <div class="h-14.5 hidden lg:block"></div>
         @endif
