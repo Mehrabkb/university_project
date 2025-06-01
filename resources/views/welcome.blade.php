@@ -314,7 +314,7 @@
         <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
         <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-        <script>
+        <!-- <script>
             // ساخت نقشه
             const map = L.map('map').setView([51.05, 13.73], 12); // مختصات مرکز اولیه
 
@@ -342,7 +342,160 @@
                         }
                     }).addTo(map);
                 });
-        </script>
+        </script> -->
+        <script>
+    const map = L.map('map').setView([51.05, 13.73], 12);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let allFeatures = [];
+    let filteredData = [];
+    let index = 0;
+    const step = 9;
+    let currentLayerGroup;
+
+    const list = document.getElementById('place-list');
+    const loading = document.getElementById('loading');
+
+    fetch("{{ asset('Sachsen.geojson') }}")
+        .then(res => res.json())
+        .then(json => {
+            allFeatures = json.features;
+            filteredData = allFeatures;
+
+            const types = extractTourismTypes(allFeatures);
+            populateCategorySelect(types);
+
+            renderMap(filteredData);
+            loadMore();
+        });
+
+    function extractTourismTypes(features) {
+        const types = new Set();
+        features.forEach(f => {
+            if (f.properties.tourism) {
+                types.add(f.properties.tourism);
+            }
+        });
+        return Array.from(types);
+    }
+
+    function populateCategorySelect(types) {
+        const select = document.getElementById('categorySelect');
+        types.forEach(type => {
+            const option = document.createElement('option');
+            option.value = type;
+            option.textContent = type;
+            select.appendChild(option);
+        });
+    }
+
+    document.getElementById('categorySelect').addEventListener('change', (e) => {
+        const selected = e.target.value;
+        if (selected === 'all') {
+            filteredData = allFeatures;
+        } else {
+            filteredData = allFeatures.filter(f => f.properties.tourism === selected);
+        }
+        index = 0;
+        list.innerHTML = '';
+        renderMap(filteredData);
+        loadMore();
+    });
+
+    function renderMap(features) {
+        if (currentLayerGroup) {
+            map.removeLayer(currentLayerGroup);
+        }
+
+        currentLayerGroup = L.geoJSON(features, {
+            pointToLayer: function (feature, latlng) {
+                return L.circleMarker(latlng, {
+                    radius: 6,
+                    color: getMarkerColor(feature.properties.tourism)
+                });
+            },
+            onEachFeature: function (feature, layer) {
+                let props = feature.properties;
+                let popup = `<strong>${props.name || 'نام ندارد'}</strong><br>`;
+                if (props['addr:street']) popup += `${props['addr:street']} ${props['addr:housenumber'] || ''}<br>`;
+                if (props.website) popup += `<a href="${props.website}" target="_blank">وب‌سایت</a><br>`;
+                if (props.opening_hours) popup += `🕒 ${props.opening_hours}<br>`;
+                layer.bindPopup(popup);
+                layer.on('click', () => showDetails(feature));
+            }
+        }).addTo(map);
+    }
+
+    function getMarkerColor(type) {
+        const colors = {
+            museum: 'blue',
+            gallery: 'purple',
+            artwork: 'green',
+            zoo: 'orange',
+            theme_park: 'red'
+        };
+        return colors[type] || 'gray';
+    }
+
+    function createCard(item) {
+        const props = item.properties;
+        const name = props.name || 'بدون نام';
+        const address = (props['addr:street'] || '') + ' ' + (props['addr:housenumber'] || '');
+        const website = props.website ? `<a href="${props.website}" target="_blank">وب‌سایت</a>` : '';
+        const phone = props.phone || '';
+        return `
+        <div class="col-md-4 my-3">
+            <div class="card h-100 shadow-sm" style="cursor:pointer" onclick='showDetails(${JSON.stringify(item).replace(/'/g, "\\'")})'>
+                <div class="card-body">
+                    <h5 class="card-title">${name}</h5>
+                    <p class="card-text">${address}</p>
+                    ${website ? `<p>${website}</p>` : ''}
+                    ${phone ? `<p>📞 ${phone}</p>` : ''}
+                </div>
+            </div>
+        </div>`;
+    }
+
+    function loadMore() {
+        loading.style.display = 'block';
+        setTimeout(() => {
+            const slice = filteredData.slice(index, index + step);
+            slice.forEach(item => {
+                list.insertAdjacentHTML('beforeend', createCard(item));
+            });
+            index += step;
+            loading.style.display = 'none';
+        }, 300);
+    }
+
+    window.addEventListener('scroll', () => {
+        const nearBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 100;
+        if (nearBottom && index < filteredData.length) {
+            loadMore();
+        }
+    });
+
+    function showDetails(feature) {
+        const props = feature.properties;
+        let html = `<ul class="list-group">`;
+
+        for (const [key, value] of Object.entries(props)) {
+            html += `
+            <li class="list-group-item">
+                <strong>${key}</strong>: ${value}
+            </li>`;
+        }
+
+        html += `</ul>`;
+        document.getElementById('detailsContent').innerHTML = html;
+        const modal = new bootstrap.Modal(document.getElementById('detailsModal'));
+        modal.show();
+    }
+</script>
+
       <script>
         let data = [];         
         let index = 0;         
