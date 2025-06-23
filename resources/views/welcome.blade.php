@@ -287,27 +287,35 @@
         <br>
         <hr>
         <div class="mb-3">
-            <label for="categorySelect" class="form-label">انتخاب دسته‌بندی:</label>
+            <label for="categorySelect" class="form-label">Category:</label>
             <select id="categorySelect" class="form-select">
-                <option value="all">همه دسته‌ها</option>
+                <option value="all">All</option>
             </select>
         </div>
+        <div class="my-3">
+            <input type="text" id="searchInput" class="form-control" placeholder="Search">
+        </div>
         <div id="listContainer"></div>
-        <h2 class="mb-4">لیست اماکن فرهنگی</h2>
+        <h2 class="mb-4">List</h2>
         <div id="place-list" class="row"></div>
-        <div id="loading">در حال بارگذاری...</div>
+        <div id="loading">Loading ...</div>
 
 
         <div class="modal fade" id="detailsModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-lg modal-dialog-scrollable">
                 <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="detailsModalLabel">جزئیات مکان</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="بستن"></button>
-                </div>
-                <div class="modal-body" id="detailsContent">
-                    در حال بارگذاری...
-                </div>
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="detailsModalLabel">Info</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body" id="detailsContent">
+                        Loading...
+                    </div>
+                    <div class="modal-footer">
+                        <button id="addToFavoritesBtn" class="btn btn-primary" onclick="addToFavorites()">
+                        Add To Favorite
+                    </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -333,7 +341,7 @@
                             let props = feature.properties;
                             let popup = `<strong>${props.name || 'نام ندارد'}</strong><br>`;
                             if (props['addr:street']) popup += `${props['addr:street']} ${props['addr:housenumber'] || ''}<br>`;
-                            if (props.website) popup += `<a href="${props.website}" target="_blank">وب‌سایت</a><br>`;
+                            if (props.website) popup += `<a href="${props.website}" target="_blank">WebSite</a><br>`;
                             if (props.opening_hours) popup += `🕒 ${props.opening_hours}<br>`;
                             layer.bindPopup(popup);
                             layer.on('click', function () {
@@ -421,7 +429,7 @@
                 let props = feature.properties;
                 let popup = `<strong>${props.name || 'نام ندارد'}</strong><br>`;
                 if (props['addr:street']) popup += `${props['addr:street']} ${props['addr:housenumber'] || ''}<br>`;
-                if (props.website) popup += `<a href="${props.website}" target="_blank">وب‌سایت</a><br>`;
+                if (props.website) popup += `<a href="${props.website}" target="_blank">Web Site</a><br>`;
                 if (props.opening_hours) popup += `🕒 ${props.opening_hours}<br>`;
                 layer.bindPopup(popup);
                 layer.on('click', () => showDetails(feature));
@@ -444,7 +452,7 @@
         const props = item.properties;
         const name = props.name || 'بدون نام';
         const address = (props['addr:street'] || '') + ' ' + (props['addr:housenumber'] || '');
-        const website = props.website ? `<a href="${props.website}" target="_blank">وب‌سایت</a>` : '';
+        const website = props.website ? `<a href="${props.website}" target="_blank">Web Site</a>` : '';
         const phone = props.phone || '';
         return `
         <div class="col-md-4 my-3">
@@ -494,12 +502,8 @@
         const modal = new bootstrap.Modal(document.getElementById('detailsModal'));
         modal.show();
     }
-</script>
-
-      <script>
         let data = [];         
-        let index = 0;         
-        const step = 9;        // چون در هر ردیف 3 تا داریم، عدد باید مضرب 3 باشه
+        // index = 0;              // چون در هر ردیف 3 تا داریم، عدد باید مضرب 3 باشه
 
         fetch("{{ asset('Sachsen.geojson') }}")
             .then(res => res.json())
@@ -510,9 +514,9 @@
 
         function createCard(item) {
             const props = item.properties;
-            const name = props.name || 'بدون نام';
+            const name = props.name || 'No Name';
             const address = (props['addr:street'] || '') + ' ' + (props['addr:housenumber'] || '');
-            const website = props.website ? `<a href="${props.website}" target="_blank">وب‌سایت</a>` : '';
+            const website = props.website ? `<a href="${props.website}" target="_blank">WebSite</a>` : '';
             const phone = props.phone || '';
             return `
             <div class="col-md-4 my-3">
@@ -566,8 +570,8 @@
             const modal = new bootstrap.Modal(document.getElementById('detailsModal'));
             modal.show();
         }
-        let allFeatures = []; // ذخیره همه داده‌ها
-        let currentLayerGroup; // برای حذف و اضافه لایه‌ها
+        allFeatures = []; // ذخیره همه داده‌ها
+        currentLayerGroup; // برای حذف و اضافه لایه‌ها
 
         function extractTourismTypes(features) {
         const types = new Set();
@@ -634,6 +638,128 @@
             renderList(allFeatures);
             renderMap(allFeatures);
         });
+        document.addEventListener('DOMContentLoaded', () => {
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) {
+                searchInput.addEventListener('input', (e) => {
+                    console.log('hello');
+                    const keyword = e.target.value.trim().toLowerCase();
+                    const selectedCategory = document.getElementById('categorySelect').value;
+
+                    let filtered = filterFeaturesByTourism(selectedCategory);
+
+                    if (keyword) {
+                        filtered = filtered.filter(f =>
+                            f.properties.name && f.properties.name.toLowerCase().includes(keyword)
+                        );
+                    }
+
+                    renderList(filtered);
+                    renderMap(filtered);
+                });
+            } else {
+                console.error('عنصر searchInput یافت نشد.');
+            }
+        });
+        let currentFeature = null;
+
+function showDetails(feature) {
+    currentFeature = feature;
+    const props = feature.properties;
+    let html = `<ul class="list-group">`;
+
+    for (const [key, value] of Object.entries(props)) {
+        html += `
+        <li class="list-group-item">
+            <strong>${key}</strong>: ${value}
+        </li>`;
+    }
+
+    html += `</ul>`;
+    document.getElementById('detailsContent').innerHTML = html;
+    
+    // بررسی وضعیت لاگین کاربر
+    checkLoginStatus();
+    
+    const modal = new bootstrap.Modal(document.getElementById('detailsModal'));
+    modal.show();
+}
+
+function checkLoginStatus() {
+    fetch('/api/check-auth')
+        .then(response => response.json())
+        .then(data => {
+            const btn = document.getElementById('addToFavoritesBtn');
+            if (data.authenticated) {
+                btn.style.display = 'block';
+                // بررسی آیا این مکان قبلاً اضافه شده یا نه
+                checkIsFavorite();
+            } else {
+                btn.style.display = 'none';
+            }
+        });
+}
+
+function checkIsFavorite() {
+    if (!currentFeature) return;
+    
+    fetch(`/api/check-favorite/${currentFeature.id}`)
+        .then(response => response.json())
+        .then(data => {
+            const btn = document.getElementById('addToFavoritesBtn');
+            if (data.isFavorite) {
+                btn.textContent = 'حذف از علاقه‌مندی‌ها';
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-danger');
+                btn.onclick = removeFromFavorites;
+            } else {
+                btn.textContent = 'افزودن به علاقه‌مندی‌ها';
+                btn.classList.remove('btn-danger');
+                btn.classList.add('btn-primary');
+                btn.onclick = addToFavorites;
+            }
+        });
+}
+
+function addToFavorites() {
+    if (!currentFeature) return;
+    
+    fetch('/api/favorites', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+        },
+        body: JSON.stringify({
+            feature_id: currentFeature.id
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('به علاقه‌مندی‌ها اضافه شد');
+            checkIsFavorite();
+        }
+    });
+}
+
+function removeFromFavorites() {
+    if (!currentFeature) return;
+    
+    fetch(`/api/favorites/${currentFeature.id}`, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('از علاقه‌مندی‌ها حذف شد');
+            checkIsFavorite();
+        }
+    });
+}
         </script>
         @if (Route::has('login'))
             <div class="h-14.5 hidden lg:block"></div>
