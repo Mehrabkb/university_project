@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-
+        <meta name="csrf-token" content="{{ csrf_token() }}">
         <title>Laravel</title>
 
         <!-- Fonts -->
@@ -13,7 +13,7 @@
         <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
         <style>
-        #map { 
+        #map {
             width : 50%;
             height: 50vh;
          }
@@ -502,7 +502,7 @@
         const modal = new bootstrap.Modal(document.getElementById('detailsModal'));
         modal.show();
     }
-        let data = [];         
+        let data = [];
         // index = 0;              // چون در هر ردیف 3 تا داریم، عدد باید مضرب 3 باشه
 
         fetch("{{ asset('Sachsen.geojson') }}")
@@ -677,10 +677,10 @@ function showDetails(feature) {
 
     html += `</ul>`;
     document.getElementById('detailsContent').innerHTML = html;
-    
+
     // بررسی وضعیت لاگین کاربر
     checkLoginStatus();
-    
+
     const modal = new bootstrap.Modal(document.getElementById('detailsModal'));
     modal.show();
 }
@@ -702,7 +702,7 @@ function checkLoginStatus() {
 
 function checkIsFavorite() {
     if (!currentFeature) return;
-    
+
     fetch(`/api/check-favorite/${currentFeature.id}`)
         .then(response => response.json())
         .then(data => {
@@ -723,8 +723,8 @@ function checkIsFavorite() {
 
 function addToFavorites() {
     if (!currentFeature) return;
-    
-    fetch('/api/favorites', {
+
+    fetch('{{ route('add.to.favorite') }}', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -737,15 +737,17 @@ function addToFavorites() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('به علاقه‌مندی‌ها اضافه شد');
-            checkIsFavorite();
+            alert('add to favorites');
+            // checkIsFavorite();
+        }else{
+            alert(data.message);
         }
     });
 }
 
 function removeFromFavorites() {
     if (!currentFeature) return;
-    
+
     fetch(`/api/favorites/${currentFeature.id}`, {
         method: 'DELETE',
         headers: {
